@@ -1,5 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, ChevronLeft, ChevronRight, Brain, Activity, Zap, Trophy, Flame } from 'lucide-react';
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, onValue, set } from "firebase/database";
+
+// --- FIREBASE CLOUD CONFIGURATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyD35KTrgFZ_xsqsQaeGUnwhWKJ6Tgg-5Q8",
+  authDomain: "rbi-tracker.firebaseapp.com",
+  projectId: "rbi-tracker",
+  storageBucket: "rbi-tracker.firebasestorage.app",
+  messagingSenderId: "6793297472",
+  appId: "1:6793297472:web:56ff97a9eb9741331f69a5",
+  // I have manually added this databaseURL format. If your sync fails, check your 
+  // Firebase Realtime DB dashboard to ensure your URL matches this:
+  databaseURL: "https://rbi-tracker-default-rtdb.firebaseio.com" 
+};
+
+// Initialize Cloud Connection
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 // Upgraded Schedule Array with Micro-Details (Week 1 fully populated)
 const rawSchedule = [
@@ -66,16 +85,29 @@ const rawSchedule = [
 
 export default function App() {
   const [currentDayIdx, setCurrentDayIdx] = useState(0);
+  const [progress, setProgress] = useState({});
 
-  const [progress, setProgress] = useState(() => {
-    const saved = localStorage.getItem('rbi_study_progress');
-    return saved ? JSON.parse(saved) : {};
-  });
+  // --- FIREBASE CLOUD SYNC LOGIC ---
+  useEffect(() => {
+    // This connects to the cloud and listens for changes 24/7
+    const progressRef = ref(db, 'user_progress');
+    const unsubscribe = onValue(progressRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setProgress(data);
+      }
+    });
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, []);
 
   const toggleTask = (taskId) => {
+    // 1. Update the screen instantly so it feels fast
     const newProgress = { ...progress, [taskId]: !progress[taskId] };
     setProgress(newProgress);
-    localStorage.setItem('rbi_study_progress', JSON.stringify(newProgress));
+    
+    // 2. Fire the updated data securely to the Firebase Cloud
+    set(ref(db, 'user_progress'), newProgress);
   };
 
   const nextDay = () => {
@@ -111,21 +143,16 @@ export default function App() {
   const isPerfectDay = progressPercent === 100;
 
   return (
-    // p-0 on mobile so it spans edge-to-edge, p-4/p-8 on larger screens for floating window effect
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#0a0f1c] to-black p-0 sm:p-4 md:p-8 flex items-center justify-center font-sans text-slate-200 selection:bg-cyan-500/30">
-      
-      {/* Container: Stacks top-bottom on mobile, side-by-side on md+. Uses 100dvh for mobile address bar correction */}
       <div className="w-full max-w-7xl h-[100dvh] md:h-[90vh] flex flex-col md:flex-row bg-white/[0.03] backdrop-blur-2xl rounded-none sm:rounded-[2.5rem] shadow-none sm:shadow-[0_0_80px_rgba(0,0,0,0.6)] border-0 sm:border border-white/10 overflow-hidden relative">
         
-        {/* Glowing Orbs */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10 hidden sm:block">
           <div className="absolute -top-40 -left-40 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px]"></div>
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px]"></div>
         </div>
 
-        {/* LEFT/TOP PANE: Info & Progress (Sticky on mobile, Fixed on desktop) */}
+        {/* LEFT/TOP PANE */}
         <div className="w-full md:w-2/5 lg:w-1/3 flex flex-col justify-between p-6 sm:p-8 lg:p-12 border-b md:border-b-0 md:border-r border-white/10 bg-black/20 relative z-10 shrink-0">
-          
           <div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-8">
               <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest bg-gradient-to-r from-cyan-400 to-blue-500 text-transparent bg-clip-text drop-shadow-sm border border-cyan-500/30 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-cyan-500/10">
@@ -137,7 +164,6 @@ export default function App() {
               </div>
             </div>
             
-            {/* Dynamic text scaling for mobile vs desktop */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white drop-shadow-lg mb-6 sm:mb-10 leading-tight">
               {currentDayData.d}
             </h1>
@@ -179,7 +205,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* RIGHT/BOTTOM PANE: Task List (Scrollable on both) */}
+        {/* RIGHT/BOTTOM PANE */}
         <div className="flex-1 w-full md:w-3/5 lg:w-2/3 p-4 sm:p-8 lg:p-12 overflow-y-auto custom-scrollbar relative z-10">
           <div className="space-y-3 sm:space-y-4 max-w-3xl pb-10">
             {tasks.map((task) => {
@@ -240,14 +266,14 @@ export default function App() {
             })}
           </div>
           
-          <p className="text-left text-slate-600 text-[10px] sm:text-xs mt-6 sm:mt-12 tracking-widest uppercase font-semibold">
-            Data encrypted & stored locally
+          <p className="text-left text-cyan-500/50 text-[10px] sm:text-xs mt-6 sm:mt-12 tracking-widest uppercase font-semibold flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
+            Syncing live via Firebase Cloud
           </p>
         </div>
 
       </div>
 
-      {/* Tailwind Custom Keyframes & Scrollbar */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes shimmer {
           100% { transform: translateX(100%); }
