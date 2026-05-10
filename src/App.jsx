@@ -13,7 +13,7 @@ const firebaseConfig = {
   appId: "1:6793297472:web:56ff97a9eb9741331f69a5",
   // I have manually added this databaseURL format. If your sync fails, check your 
   // Firebase Realtime DB dashboard to ensure your URL matches this:
-  databaseURL: "https://rbi-tracker-default-rtdb.firebaseio.com" 
+  databaseURL: "https://rbi-tracker-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
 
 // Initialize Cloud Connection
